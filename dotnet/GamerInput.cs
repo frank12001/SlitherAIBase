@@ -5,8 +5,8 @@ namespace ConsoleApp1
 {
     public class GamerInput
     {
-        private const float TestMaxStayTime = 60000;
-        private const float TestGamingStayTime = 60000 * 4;
+        private const float TestMaxStayTime = 180000;
+        private const float TestGamingStayTime = TestMaxStayTime * 4;
         public Level Now { get; private set; }
         public Stopwatch _Stopwatch { get; private set; }
         public bool LobbyReady;

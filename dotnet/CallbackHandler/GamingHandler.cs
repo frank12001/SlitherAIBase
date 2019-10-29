@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GameServer;
+using System;
 using System.Collections.Generic;
 
 namespace ConsoleApp1.CallbackHandler
@@ -7,7 +8,7 @@ namespace ConsoleApp1.CallbackHandler
     [Serializable]
     public class GamingHandler : FTServer.Operator.CallbackHandler
     {
-        public const byte OperationCode = 2;
+        public const byte OperationCode = (byte)EOperationCode.Gaming;
         #region Receive Server CallBack Event
         //接收世界狀態
         public event Action<object> ReceiveWorldState;

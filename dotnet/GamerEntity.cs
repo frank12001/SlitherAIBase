@@ -18,7 +18,7 @@ using GameServer.Packet;
 
 namespace ConsoleApp1
 {
-    public class GamerEntity : IDisposable , IPlayerInput,IPlayerOutput
+    public class GamerEntity : IDisposable, IGamerEntity, IFireReceiver, IPlayerInput, IPlayerOutput
     {   
         private static readonly TaskAgent NetworkService = new TaskAgent();
         private static readonly TaskAgent Logic = new TaskAgent();
@@ -39,8 +39,9 @@ namespace ConsoleApp1
         public ToArenaHandler _toArenaHandler { get; private set; }
         public PacketHandler _gamePacketHandler { get; private set; }
         public PacketHandler _gameRoomHandler { get; private set; }
+        public IFireReceiver fireReceiver => this;
 
-        public IBotProxy botProxy;
+        public IBotProxy botProxy { get; private set; }
 
         private SimWorld World;
 
@@ -81,9 +82,17 @@ namespace ConsoleApp1
             accessToken = Init.Authentication(userAddr, _devicedId);
         }
 
-        public void Login(string userAddr)
+        public void Login(string userAddr, ELoginType loginType = ELoginType.NewAccount)
         {
-            account = Init.Login(userAddr, accessToken);
+            switch (loginType)
+            {
+                case ELoginType.NewAccount:
+                    account = Init.CreateAccount(userAddr, accessToken);
+                    break;
+                case ELoginType.Login:
+                    account = Init.AILogin(userAddr, accessToken);
+                    break;
+            }
         }
 
         public void Start(string gameUrl)
@@ -150,7 +159,8 @@ namespace ConsoleApp1
         }
         private void ReceiveToArena(EnterArenaPacket packet)
         {
-            GamerFlow.FReceiveToArena(this, packet);
+            GamerFlow.FReceiveToArena(this, packet, 
+                (slot) => botProxy.GameStart(account, slot, new BotEvents(this, this)));
         }
         private void ReceiveDeletePlayer(byte[] slots)
         {
@@ -163,7 +173,7 @@ namespace ConsoleApp1
 
         private void Update()
         {
-            GamerFlow.Update(this);
+            GamerFlow.Update(this, TaskAgent.Delay);
         }        
 
         public void Dispose()
@@ -201,7 +211,7 @@ namespace ConsoleApp1
 
         public event Action<GameResultPacket> onReceiveGameResult;
         public void fireReceiveGameResult(GameResultPacket r)
-        {
+        {   
             onReceiveGameResult?.Invoke(r);
         }
 
@@ -332,4 +342,51 @@ namespace ConsoleApp1
         }
         #endregion
     }
+
+    public interface IGamerEntity
+    {
+        string accessToken { get; }
+        Account account { get; }
+        GamerInput input { get; }
+
+        _System _systemHandler { get; }
+        GamingHandler _gamingHandler { get; }
+        LobbyHandler _lobbyHandler { get; }
+        ToArenaHandler _toArenaHandler { get; }
+        PacketHandler _gamePacketHandler { get; }
+        PacketHandler _gameRoomHandler { get; }
+        IFireReceiver fireReceiver { get; }
+
+        IBotProxy botProxy { get; }
+
+        Dictionary<int, string> mPlayerNameList { get; }
+
+        void QueryGameUrl(string agentAddr, string serverVer, string serverType);
+        void Authenticate(string userAddr);
+        void Login(string userAddr, ELoginType loginType);
+        void Start(string gameUrl);
+        void Start();
+    }
+
+    public interface IFireReceiver
+    {
+        void fireReceiveEnvironment(EnvironmentPacket r);
+        void fireReceiveGameEvent(GameEvent[] r);
+        void fireReceiveDropItem(DropItemPacket r);
+        void fireReceiveBonuspot(int r);
+        void fireReceiveGameResult(GameResultPacket r);
+        void fireReceiveGamerInfo(GamersPacket r);
+        void fireReceiveBroadcast(object r);
+        void fireReceivePureData(string r);
+        void fireReceiveGameStart(object r);
+        void fireReceiveGamerSlots(Dictionary<string, byte> r);
+        void fireReceiveGMGamer(byte[] r);
+        void fireReceiveCountDown(int r);
+        void fireReceiveGameTime(float r);
+        void fireReceiveEnterArena(EnterArenaPacket r);
+        void fireDeleteArenaPlayers(byte[] slots);
+        void fireStartGame();
+
+    }
+
 }

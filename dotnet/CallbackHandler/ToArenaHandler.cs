@@ -9,11 +9,12 @@ namespace FTServer.Operator
 {
     public class ToArenaHandler : CallbackHandler
     {
-        GamerEntity GamerEntity;
-        public void SetCallBack(GamerEntity gamerEntity)
+        IGamerEntity GamerEntity;
+        public void SetCallBack(IGamerEntity gamerEntity)
         {
             GamerEntity = gamerEntity;
         }
+
         public override void ServerCallback(Dictionary<byte, object> payload)
         {
             foreach (var pair in payload)
@@ -28,7 +29,7 @@ namespace FTServer.Operator
                 {
                     case EServerToArenaCode.EnterArena:
                         Console.WriteLine($"{DateTime.Now}: EServerToArenaCode.EnterArena, Data:{pair.Value}");
-                        GamerEntity?.fireReceiveEnterArena((EnterArenaPacket)pair.Value);
+                        GamerEntity?.fireReceiver.fireReceiveEnterArena((EnterArenaPacket)pair.Value);
                         break;
                     case EServerToArenaCode.KickOff:
                         Console.WriteLine($"{DateTime.Now}: EServerToArenaCode.KickOff, Msg:{pair.Value}");
@@ -36,11 +37,11 @@ namespace FTServer.Operator
                     case EServerToArenaCode.DeleteArenaPlayers:
                         byte[] deleteSlots = (byte[])pair.Value;
                         Console.WriteLine($"{DateTime.Now}: EServerToArenaCode.DeleteArenaPlayers, DeleteSlots:{toString(deleteSlots)}");
-                        GamerEntity?.fireDeleteArenaPlayers(deleteSlots);
+                        GamerEntity?.fireReceiver.fireDeleteArenaPlayers(deleteSlots);
                         break;
                     case EServerToArenaCode.StartGame:
                         Console.WriteLine($"{DateTime.Now}: EServerToArenaCode.StartGame");
-                        GamerEntity?.fireStartGame();
+                        GamerEntity?.fireReceiver.fireStartGame();
                         break;
                 }
             }

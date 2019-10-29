@@ -13,8 +13,16 @@ namespace ConsoleApp1
         {
             CallbackPool += action;
             if (_Main != null) return;
-            
-            _Main = Task.Run(Function);
+
+            _Main = Task.Run(Function)
+                .ContinueWith(
+                    (task) => 
+                    {
+                        Console.WriteLine(task.Exception);
+                        Environment.Exit(-1);
+                    }, 
+                    TaskContinuationOptions.OnlyOnFaulted);
+
             async Task Function()
             {
                 while (true)

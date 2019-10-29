@@ -9,27 +9,32 @@ using GamingRoom.Gaming.Room.GameLogic.GameEventSystem;
 using GamingServer.Gaming.Packet;
 using SlitherEvo;
 using GameServer.Packet;
+using FTServer.Example;
+using ConsoleApp1.CallbackHandler;
 
 namespace ConsoleApp1
 {
     public class GamerFlow
     {
-        public static void Update(GamerEntity gamer)
+        public static void Update(IGamerEntity gamer, float deltaTime)
         {
             gamer.input.CheckStayTime();
             if (gamer.input.IsError)
             {
                 Console.WriteLine("Gamer 在單一狀態停留超過最大時間，判斷為是有問題的 AI");
-                gamer.Dispose();
-                return;
+                //gamer.Dispose();
+                throw new InvalidOperationException("AI input is error.");
+                //return;
             }          
 
             if (gamer.input.TrySetNextLevel(GamerInput.Level.ConnectedNotRegister))
             {
+                Console.WriteLine("ConnectedNotRegister");
                 gamer._lobbyHandler.SendToServer(EClientLobbyCode.Register, gamer.account.Info.Name);
             }
             if (gamer.input.TrySetNextLevel(GamerInput.Level.WaitingJoinRoom))
             {
+                Console.WriteLine("WaitingJoinRoom");
                 if (int.TryParse(Environment.GetEnvironmentVariable("RoomID"), out int roomId) && roomId >= 0)
                 {
                     JoinRoom(gamer, roomId);
@@ -41,6 +46,7 @@ namespace ConsoleApp1
             }
             if (gamer.input.TrySetNextLevel(GamerInput.Level.WaitEnterGaming))
             {
+                Console.WriteLine("WaitEnterGaming");
                 if (!gamer.input.LobbyReady)
                 {
                     gamer.input.LobbyReady = true;
@@ -49,19 +55,24 @@ namespace ConsoleApp1
             }
 
             if (gamer.input.Now == GamerInput.Level.Gaming)
-            {
-                gamer.botProxy.GameUpdate(TimeSpan.FromMilliseconds(TaskAgent.Delay));
+            {   
                 if (gamer.input.IsOverGame)
                 {
+                    Console.WriteLine("Game Over.");
                     // close the application
                     Environment.Exit(0);
                     //gamer.input.ResetToLobby();
                 }
+                else
+                {
+                    gamer.botProxy.GameUpdate(TimeSpan.FromMilliseconds(deltaTime)/*TimeSpan.FromMilliseconds(TaskAgent.Delay)*/);
+                }
             }
         }
 
-        private static void JoinRoom(GamerEntity gamer, int roomId)
+        private static void JoinRoom(IGamerEntity gamer, int roomId)
         {
+            Console.WriteLine($"Join Room[{roomId}].");
             var input = new JoinRoomInput
             {
                 RoomID = roomId,
@@ -72,8 +83,9 @@ namespace ConsoleApp1
             gamer._lobbyHandler.SendToServer(EClientLobbyCode.JoinRoom, input);
         }
 
-        private static void QuickJoin(GamerEntity gamer)
+        private static void QuickJoin(IGamerEntity gamer)
         {
+            Console.WriteLine("Quick join Room.");
             Console.WriteLine(gamer.account.Info.Name);
             var input = new QuickJoinInput
             {
@@ -86,12 +98,12 @@ namespace ConsoleApp1
             gamer._lobbyHandler.SendToServer(EClientLobbyCode.QuickJoin, input);
         }
 
-        public static void FConnectToServer(GamerEntity gamer)
+        public static void FConnectToServer(IGamerEntity gamer)
         {
             gamer.input.TrySetNextLevel(GamerInput.Level.NotConnect);
         }
 
-        public static void FReceiveLobbyPacket(GamerEntity gamer, Dictionary<byte, object> packet)
+        public static void FReceiveLobbyPacket(IGamerEntity gamer, Dictionary<byte, object> packet)
         {
             if (!Enum.TryParse(packet[0].ToString(), out EServerLobbyCode code))
             {
@@ -145,7 +157,7 @@ namespace ConsoleApp1
             }
         }
 
-        public static void FReceiveToArena(GamerEntity gamer, EnterArenaPacket packet)
+        public static void FReceiveToArena(IGamerEntity gamer, EnterArenaPacket packet, Action<byte> onEnterArena)
         {
             //if (gamer.input.Now == GamerInput.Level.WaitEnterGaming)
             //{
@@ -158,10 +170,12 @@ namespace ConsoleApp1
             {
                 gamer._toArenaHandler.SendLoading(100);
             }
-            gamer.botProxy.GameStart(gamer.account, (byte)gamer.input.SlotID, new BotEvents(gamer, gamer));
+            
+            onEnterArena?.Invoke((byte)gamer.input.SlotID);
+            //gamer.botProxy.GameStart(gamer.account, (byte)gamer.input.SlotID, new BotEvents(gamer, gamer));
         }
 
-        public static void FDeletePlayer(GamerEntity gamer, byte[] slots)
+        public static void FDeletePlayer(IGamerEntity gamer, byte[] slots)
         {
             if (gamer.input.TrySetNextLevel(GamerInput.Level.WaitDeletePlayer))
             {
@@ -174,8 +188,7 @@ namespace ConsoleApp1
             //}
         }
 
-
-        public static void FReceiveGamePacket(GamerEntity gamer,Dictionary<byte,object> packet,out SimWorld world)
+        public static void FReceiveGamePacket(IGamerEntity gamer, Dictionary<byte,object> packet,out SimWorld world)
         {
             foreach (byte key in packet.Keys)
             {
@@ -201,6 +214,7 @@ namespace ConsoleApp1
                         break;
                     //遊戲結果
                     case EServerGameCode.GameResult:
+                        Console.WriteLine("Receive game result.");
                         //LogProxy.WriteLine($"EServerGameCode.GameResult({gamer.account.Info.Name})");
                         gamer.input.IsOverGame = true;
                         break;
@@ -221,9 +235,6 @@ namespace ConsoleApp1
             int? PacketCountDown = null;
             float? PacketGameTime = null;
            
-
-           
-
             foreach (var key in packet.Keys)
             {
                 if (!Enum.TryParse(key.ToString(), out EServerGameCode code))
@@ -273,31 +284,31 @@ namespace ConsoleApp1
             }
 
             if (PacketEnv != null)
-                gamer.fireReceiveEnvironment(PacketEnv.Value);
+                gamer.fireReceiver.fireReceiveEnvironment(PacketEnv.Value);
             if (PacketGameEvent != null)
-                gamer.fireReceiveGameEvent(PacketGameEvent);
+                gamer.fireReceiver.fireReceiveGameEvent(PacketGameEvent);
             if (PacketDropItem != null)
-                gamer.fireReceiveDropItem(PacketDropItem);
+                gamer.fireReceiver.fireReceiveDropItem(PacketDropItem);
             if (PacketBonuspot != null)
-                gamer.fireReceiveBonuspot(PacketBonuspot.Value);
+                gamer.fireReceiver.fireReceiveBonuspot(PacketBonuspot.Value);
             if (PacketGameResult != null)
-                gamer.fireReceiveGameResult(PacketGameResult);
+                gamer.fireReceiver.fireReceiveGameResult(PacketGameResult);
             if (PacketGamersInfo != null)
-                gamer.fireReceiveGamerInfo (PacketGamersInfo);
+                gamer.fireReceiver.fireReceiveGamerInfo (PacketGamersInfo);
             if (PacketBroadcast != null)
-                gamer.fireReceiveBroadcast(PacketBroadcast);
+                gamer.fireReceiver.fireReceiveBroadcast(PacketBroadcast);
             if (PacketPureData != null)
-                gamer.fireReceivePureData(PacketPureData);
+                gamer.fireReceiver.fireReceivePureData(PacketPureData);
             if (PacketGameStart != null)
-                gamer.fireReceiveGameStart(PacketGameStart);
+                gamer.fireReceiver.fireReceiveGameStart(PacketGameStart);
             if (PacketGamerSlots != null)
-                gamer.fireReceiveGamerSlots(PacketGamerSlots);
+                gamer.fireReceiver.fireReceiveGamerSlots(PacketGamerSlots);
             if (PacketGMGamer != null)
-                gamer.fireReceiveGMGamer (PacketGMGamer);
+                gamer.fireReceiver.fireReceiveGMGamer (PacketGMGamer);
             if (PacketCountDown != null)
-                gamer.fireReceiveCountDown(PacketCountDown.Value);
+                gamer.fireReceiver.fireReceiveCountDown(PacketCountDown.Value);
             if (PacketGameTime != null)
-                gamer.fireReceiveGameTime(PacketGameTime.Value);
+                gamer.fireReceiver.fireReceiveGameTime(PacketGameTime.Value);
             
             world = new SimWorld();
             if (PacketEnv != null)

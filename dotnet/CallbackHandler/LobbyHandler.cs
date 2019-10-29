@@ -8,7 +8,7 @@ namespace ConsoleApp1.CallbackHandler
     //WebLobby
     public class LobbyHandler : FTServer.Operator.CallbackHandler
     {
-        public const byte OperationCode = 7;
+        public const byte OperationCode = (byte)EOperationCode.Lobby;
         public event Action<Dictionary<byte, object>> RecvPacket;
 
         public override void ServerCallback(Dictionary<byte, object> server_packet)

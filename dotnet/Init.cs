@@ -26,7 +26,7 @@ namespace ConsoleApp1
             Console.WriteLine($"devicedId: {devicedId}");
             var urls = QueryIP(agentServerIP, version, type);
             var accessToken = Authentication(urls, devicedId);
-            var account = Login(urls, accessToken);
+            var account = CreateAccount(urls, accessToken);
             return Tuple.Create(urls, accessToken, account);
         }
         public static Tuple<Connect,_System,LobbyHandler, ToArenaHandler, GamingHandler,PacketHandler,PacketHandler> Rudp(Uri gamingServerIp)
@@ -75,7 +75,8 @@ namespace ConsoleApp1
 
         public static string Authentication(string userUrl, string devicedId)
         {
-            var client = new RestClient(userUrl);
+            // Cannot access local ip in k8s pod
+            RestClient client = new RestClient(new Uri(userUrl));
             var request = new RestRequest("Authentication");
             var input = JsonConvert.SerializeObject(new { DeviceID = devicedId, SecretOpenID = "" });
             input = StringEncrypt.Encrypt(input, userKey);
@@ -83,8 +84,9 @@ namespace ConsoleApp1
 
             var response = client.Post(request);
             var content = StringEncrypt.Decrypt(response.Content, userKey);
-
+            
             var definition = new { Code = "", Msg = "", AccessToken = "" };
+
             var result = JsonConvert.DeserializeAnonymousType(content, definition);
 
             return result.AccessToken;
@@ -107,7 +109,7 @@ namespace ConsoleApp1
             return result.AccessToken;
         }
 
-        public static Account Login(string userUrl, string accessToken)
+        public static Account CreateAccount(string userUrl, string accessToken)
         {
             var client = new RestClient(userUrl);
             var request = new RestRequest("Login");
@@ -121,7 +123,21 @@ namespace ConsoleApp1
             return JsonConvert.DeserializeAnonymousType(content, definition).Account;
         }
 
-        public static Account Login(Urls urls, string accessToken)
+        public static Account AILogin(string userUrl, string accessToken)
+        {
+            var client = new RestClient(userUrl);
+            var request = new RestRequest("Login");
+            request.AddParameter("Authorization", accessToken, ParameterType.HttpHeader);
+            var input = StringEncrypt.Encrypt(JsonConvert.SerializeObject(new { Language = "Taiwan" }), userKey);
+            request.AddParameter("application/json", input, ParameterType.RequestBody);
+            var response = client.Post(request);
+            var content = StringEncrypt.Decrypt(response.Content, userKey);
+            var definition = new { Code = "", Msg = "", Account = new SlitherEvo.Account() };
+
+            return JsonConvert.DeserializeAnonymousType(content, definition).Account;
+        }
+
+        public static Account CreateAccount(Urls urls, string accessToken)
         {
             var client = new RestClient(urls.UserUrl);
             var request = new RestRequest("Login");
@@ -150,5 +166,11 @@ namespace ConsoleApp1
         {
             return $"Code: {Code}, UserUrl: {UserUrl}, AgentUrl: {AgentUrl}, MetricUrl: {MetricUrl}, AssetsBundleUrl:{AssetsBundleUrl}, ServerArea: {ServerArea}";
         }
+    }
+
+    public enum ELoginType
+    {
+        NewAccount,
+        Login
     }
 }

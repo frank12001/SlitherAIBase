@@ -1,13 +1,14 @@
 using System;
 using FTServer.Operator;
 using System.Collections.Generic;
+using GameServer;
 //using GamingRoom.Gaming.Room.GameLogic.GameEventSystem;
 namespace FTServer.Operator
 {
     public class PacketHandler : CallbackHandler
     {
-        public const byte GamePacketOperationCode = 10;
-        public const byte GameRoomOperationCode   = 30;
+        public const byte GamePacketOperationCode = (byte)EOperationCode.GameLogic;
+        public const byte GameRoomOperationCode   = (byte)EOperationCode.GameRoom;
         
         public readonly byte OperationCode;
 
